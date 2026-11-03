@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+backend/zhiji.db
+
+# Node / 前端
+frontend/node_modules/
+frontend/dist/
+
+# 临时文件
+*.tmp
+~$*.docx
