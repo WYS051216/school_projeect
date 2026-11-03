@@ -60,3 +60,42 @@ class UploadFileItem(BaseModel):
 class UploadFolderRequest(BaseModel):
     kind: str = "note"
     files: List[UploadFileItem]
+
+
+# ---------- 能力证据 ----------
+class ExtractAbilitiesRequest(BaseModel):
+    document_ids: List[int]  # 用户勾选的文档 id 列表
+
+
+class ExtractFolderRequest(BaseModel):
+    folder_id: int  # 抽取该文件夹（含子文件夹）下所有文档
+
+
+class AbilityUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    kind: Optional[str] = None
+    source: Optional[str] = None
+    confirmed: Optional[bool] = None
+
+
+class AbilityBatchDelete(BaseModel):
+    ids: List[int]  # 批量删除的能力 id 列表
+
+
+class GenerateResumeSkillsRequest(BaseModel):
+    ability_ids: List[int]  # 用户勾选的能力 id 列表
+    target_position: str  # 目标岗位，如「C++ 后端开发工程师」
+
+
+class AbilityOut(BaseModel):
+    id: int
+    kind: str
+    name: str
+    description: str
+    source: Optional[str]
+    confirmed: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

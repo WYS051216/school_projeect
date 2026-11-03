@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 backend/zhiji.db
+.env
 
 # Node / 前端
 frontend/node_modules/

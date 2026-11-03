@@ -32,3 +32,20 @@ export const deleteDocument = (id) => request(`/documents/${id}`, { method: 'DEL
 // 上传整个文件夹（kind + 文件列表[{path, content}]）
 export const uploadFolder = (kind, files) =>
   request('/upload-folder', { method: 'POST', body: JSON.stringify({ kind, files }) })
+
+// 能力证据
+export const listAbilities = () => request('/abilities')
+export const extractAbilities = (documentIds) =>
+  request('/extract-abilities', { method: 'POST', body: JSON.stringify({ document_ids: documentIds }) })
+export const extractFolderAbilities = (folderId) =>
+  request('/extract-folder', { method: 'POST', body: JSON.stringify({ folder_id: folderId }) })
+export const updateAbility = (id, data) =>
+  request(`/abilities/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+export const deleteAbility = (id) => request(`/abilities/${id}`, { method: 'DELETE' })
+export const batchDeleteAbilities = (ids) =>
+  request('/abilities/batch-delete', { method: 'POST', body: JSON.stringify({ ids }) })
+export const generateResumeSkills = (abilityIds, targetPosition) =>
+  request('/generate-resume-skills', {
+    method: 'POST',
+    body: JSON.stringify({ ability_ids: abilityIds, target_position: targetPosition }),
+  })

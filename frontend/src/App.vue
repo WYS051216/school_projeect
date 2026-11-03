@@ -4,9 +4,15 @@
       <div class="brand">
         <span class="logo">职迹</span>
       </div>
+      <div class="nav">
+        <el-button :type="view === 'materials' ? 'primary' : 'default'" size="small" @click="view = 'materials'">材料管理</el-button>
+        <el-button :type="view === 'abilities' ? 'primary' : 'default'" size="small" @click="view = 'abilities'">能力证据</el-button>
+      </div>
     </header>
 
-    <div class="layout">
+    <AbilitiesView v-if="view === 'abilities'" />
+
+    <div v-else class="layout">
       <aside class="sidebar">
         <el-tabs v-model="kind" class="kind-tabs">
           <el-tab-pane label="笔记" name="note" />
@@ -44,17 +50,36 @@
         <section class="doc-list" :style="{ height: docListHeight + 'px' }">
           <div class="doc-list-header">
             <span class="cur-folder">{{ currentFolder ? currentFolder.name : '请选择左侧文件夹' }}</span>
-            <el-button size="small" @click="newDoc">＋ 新建文档</el-button>
+            <div class="doc-list-actions">
+              <el-button size="small" type="primary" :disabled="!selectedDocIds.length" :loading="extracting" @click="extractSelected">
+                AI 抽取能力{{ selectedDocIds.length ? `（已选 ${selectedDocIds.length}）` : '' }}
+              </el-button>
+              <el-button size="small" @click="newDoc">＋ 新建文档</el-button>
+            </div>
+          </div>
+          <div class="doc-list-selectbar">
+            <el-checkbox
+              :model-value="allSelected"
+              :indeterminate="someSelected && !allSelected"
+              @change="toggleAll"
+            >
+              全选当前文件夹
+            </el-checkbox>
+            <span class="selected-count">已选 {{ selectedDocIds.length }} 篇</span>
           </div>
           <div
             v-for="d in documents"
             :key="d.id"
             class="doc-item"
             :class="{ active: currentDoc && currentDoc.id === d.id }"
-            @click="openDoc(d)"
             @contextmenu.prevent="onDocContextMenu($event, d)"
           >
-            <span class="doc-name">{{ d.title }}</span>
+            <el-checkbox
+              :model-value="selectedDocIds.includes(d.id)"
+              @change="toggleSelect(d.id)"
+              @click.stop
+            />
+            <span class="doc-name" @click="openDoc(d)">{{ d.title }}</span>
           </div>
           <el-empty
             v-if="!documents.length"
@@ -111,11 +136,14 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { marked } from 'marked'
+import AbilitiesView from './AbilitiesView.vue'
 import {
   createDocument,
   createFolder,
   deleteDocument,
   deleteFolder,
+  extractAbilities,
+  extractFolderAbilities,
   getDocument,
   listDocuments,
   listFolders,
@@ -139,6 +167,9 @@ const contentRef = ref(null)
 const docListHeight = ref(280)
 const menu = ref({ visible: false, x: 0, y: 0, items: [], target: null })
 const menuRef = ref(null)
+const view = ref('materials')
+const selectedDocIds = ref([])
+const extracting = ref(false)
 
 const tree = computed(() => buildTree(folders.value))
 const rendered = computed(() => marked.parse(docContent.value || ''))
@@ -182,6 +213,60 @@ async function openDoc(d) {
   docTitle.value = full.title
   docContent.value = full.content
   mode.value = 'preview'
+}
+
+const allSelected = computed(() => {
+  const ids = documents.value.map((d) => d.id)
+  return ids.length > 0 && ids.every((id) => selectedDocIds.value.includes(id))
+})
+
+const someSelected = computed(() =>
+  documents.value.some((d) => selectedDocIds.value.includes(d.id)),
+)
+
+function toggleAll(val) {
+  const ids = documents.value.map((d) => d.id)
+  if (val) {
+    const set = new Set(selectedDocIds.value)
+    ids.forEach((id) => set.add(id))
+    selectedDocIds.value = Array.from(set)
+  } else {
+    selectedDocIds.value = selectedDocIds.value.filter((id) => !ids.includes(id))
+  }
+}
+
+function toggleSelect(id) {
+  const i = selectedDocIds.value.indexOf(id)
+  if (i >= 0) selectedDocIds.value.splice(i, 1)
+  else selectedDocIds.value.push(id)
+}
+
+async function extractSelected() {
+  if (!selectedDocIds.value.length) return
+  extracting.value = true
+  try {
+    const result = await extractAbilities(selectedDocIds.value)
+    ElMessage.success(`抽取成功，新增 ${result.length} 条能力证据`)
+    selectedDocIds.value = []
+    view.value = 'abilities'
+  } catch (e) {
+    ElMessage.error(e.message)
+  } finally {
+    extracting.value = false
+  }
+}
+
+async function extractFolder(folder) {
+  extracting.value = true
+  try {
+    const result = await extractFolderAbilities(folder.id)
+    ElMessage.success(`抽取成功，新增 ${result.length} 条能力证据`)
+    view.value = 'abilities'
+  } catch (e) {
+    ElMessage.error(e.message)
+  } finally {
+    extracting.value = false
+  }
 }
 
 function pickFolder() {
@@ -333,6 +418,7 @@ function onFolderContextMenu(e, data) {
       { label: '重命名', action: 'renameFolder' },
       { label: '新建子文件夹', action: 'newSubFolder' },
       { label: '新建文档', action: 'newDocInFolder' },
+      { label: 'AI 抽取能力', action: 'extractFolder' },
       { label: '删除文件夹', action: 'deleteFolder', danger: true },
     ],
     data,
@@ -359,6 +445,7 @@ function runMenuAction(item) {
   closeMenu()
   if (item.action === 'newSubFolder') promptNewFolder(t)
   else if (item.action === 'newDocInFolder') promptNewDoc(t)
+  else if (item.action === 'extractFolder') extractFolder(t)
   else if (item.action === 'deleteFolder') removeFolder(t)
   else if (item.action === 'deleteDoc') removeDoc(t)
   else if (item.action === 'renameFolder') renameFolder(t)
@@ -456,6 +543,10 @@ body {
   font-weight: 700;
   color: #409eff;
 }
+.nav {
+  display: flex;
+  gap: 8px;
+}
 
 .layout {
   flex: 1;
@@ -525,6 +616,20 @@ body {
   font-weight: 600;
   color: #303133;
 }
+.doc-list-actions {
+  display: flex;
+  gap: 8px;
+}
+.doc-list-selectbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.selected-count {
+  font-size: 12px;
+  color: #909399;
+}
 .doc-item {
   display: flex;
   align-items: center;
@@ -540,8 +645,13 @@ body {
   background: #ecf5ff;
 }
 .doc-name {
+  flex: 1;
   font-size: 14px;
   color: #303133;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .resizer {
